@@ -49,6 +49,21 @@ async function run() {
         res.send(result)
     })
 
+    app.put("/all-assignment/:id", async(req, res) => {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const options = { upsert: true };
+        const updatedAssignment = req.body;
+
+        const updatedData = {
+            $set: {
+                ...updatedAssignment
+            }
+        }
+        const result = await assignmentCollection.updateOne(filter, updatedData, options)
+        res.send(result)
+    })
+
     app.delete("/all-assignment/:id", async(req, res) => {
         const id = req.params.id;
         const query = {_id: new ObjectId(id)}

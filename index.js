@@ -7,7 +7,7 @@ const port = process.env.PORT || 5000
 
 // middleware
 app.use(cors({
-    origin: ["http://localhost:5173"],
+    origin: ["http://localhost:5173", "https://study-circle-auth.web.app", "https://study-circle-auth.firebaseapp.com"],
     credentials: true
   }))
 app.use(express.json())
@@ -28,7 +28,8 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
 
-    const assignmentCollection = client.db("studyDB").collection("assignments")
+    const assignmentCollection = client.db("studyDB").collection("assignments");
+    const submitCollection = client.db("studyDB").collection("submissions");
 
     app.get("/all-assignment", async(req, res) => {
         const cursor = assignmentCollection.find()
@@ -71,15 +72,22 @@ async function run() {
         res.send(result)
     })
 
-    app.get("/pending/:email", async(req, res) => {
+    app.get("/posted/:email", async(req, res) => {
         const email = req.params.email;
-        console.log(email)
         const query = {'a_creator.email': email}
         const result = await assignmentCollection.find(query).toArray()
         res.send(result)
     })
+
+    app.post("/submission", async(req, res) => {
+      const submitData = req.body;
+      const result = await submitCollection.insertOne(submitData)
+      res.send(result)
+    })
+
+    
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error

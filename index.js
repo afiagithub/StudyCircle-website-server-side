@@ -1,6 +1,8 @@
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const express = require('express')
 const cors = require('cors')
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser')
 require('dotenv').config()
 const app = express()
 const port = process.env.PORT || 5000
@@ -11,6 +13,7 @@ app.use(cors({
   credentials: true
 }))
 app.use(express.json())
+app.use(cookieParser())
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ctn12zm.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -23,6 +26,21 @@ const client = new MongoClient(uri, {
   }
 });
 
+const verifyToken = async (req, res, next) => {
+  const token = req.cookies?.token;
+  if (!token) {
+    return res.status(401).send({ message: 'not authorized' })
+  }
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (error, decoded) => {
+    if (error) {
+      return res.status(401).send({ message: 'not authorized' })
+    }
+    console.log('value token: ', decoded);
+    req.user = decoded;
+  })
+  next();
+}
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -30,6 +48,30 @@ async function run() {
 
     const assignmentCollection = client.db("studyDB").collection("assignments");
     const submitCollection = client.db("studyDB").collection("submissions");
+
+    // jwt token create api
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      // console.log(user);
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' })
+      res
+        .cookie('token', token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+        })
+        .send({ success: true })
+    })
+
+    // app.get("/logout", async (req, res) => {
+    //   res
+    //     .clearCookie('token', {
+    //       httpOnly: true,
+    //       secure: process.env.NODE_ENV === 'production',
+    //       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+    //       maxAge: 0
+    //     })
+    // })
 
     app.get("/all-assignment", async (req, res) => {
       const cursor = assignmentCollection.find()
@@ -106,15 +148,25 @@ async function run() {
       res.send(result)
     })
 
-    app.get("/attempted/:email", async (req, res) => {
+    app.get("/attempted/:email", verifyToken, async (req, res) => {
+      const tokenData = req.user
+      console.log(tokenData);
       const email = req.params.email;
+      if (email !== req.user.email) {
+        return res.status(403).send({ message: 'forbidden' })
+      }
       const query = { 'submitter.email': email }
       const result = await submitCollection.find(query).toArray()
       res.send(result)
     })
 
-    app.get("/pending/:email", async (req, res) => {
+    app.get("/pending/:email", verifyToken, async (req, res) => {
+      const tokenData = req.user
+      console.log(tokenData);
       const email = req.params.email;
+      if (email !== req.user.email) {
+        return res.status(403).send({ message: 'forbidden' })
+      }
       const query = { creator_email: email }
       const result = await submitCollection.find(query).toArray()
       res.send(result)

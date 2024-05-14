@@ -35,10 +35,16 @@ const verifyToken = async (req, res, next) => {
     if (error) {
       return res.status(401).send({ message: 'not authorized' })
     }
-    console.log('value token: ', decoded);
+    // console.log('value token: ', decoded);
     req.user = decoded;
   })
   next();
+};
+
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
 }
 
 async function run() {
@@ -55,27 +61,20 @@ async function run() {
       // console.log(user);
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' })
       res
-        .cookie('token', token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
-        })
+        .cookie('token', token, cookieOptions)
         .send({ success: true })
     })
-
-    // app.get("/logout", async (req, res) => {
-    //   res
-    //     .clearCookie('token', {
-    //       httpOnly: true,
-    //       secure: process.env.NODE_ENV === 'production',
-    //       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
-    //       maxAge: 0
-    //     })
-    // })
 
     app.get("/all-assignment", async (req, res) => {
       const cursor = assignmentCollection.find()
       const result = await cursor.toArray()
+      res.send(result);
+    })
+
+    app.get("/assignments/:difficulty", async (req, res) => {
+      const diff = req.params.difficulty;
+      const query = { difficulty: diff }
+      const result = await assignmentCollection.find(query).toArray()
       res.send(result);
     })
 
@@ -114,8 +113,13 @@ async function run() {
       res.send(result)
     })
 
-    app.get("/posted/:email", async (req, res) => {
+    app.get("/posted/:email", verifyToken, async (req, res) => {
+      const tokenData = req.user
+      // console.log(tokenData);
       const email = req.params.email;
+      if (email !== req.user.email) {
+        return res.status(403).send({ message: 'forbidden' })
+      }
       const query = { 'a_creator.email': email }
       const result = await assignmentCollection.find(query).toArray()
       res.send(result)
@@ -150,7 +154,7 @@ async function run() {
 
     app.get("/attempted/:email", verifyToken, async (req, res) => {
       const tokenData = req.user
-      console.log(tokenData);
+      // console.log(tokenData);
       const email = req.params.email;
       if (email !== req.user.email) {
         return res.status(403).send({ message: 'forbidden' })
@@ -162,7 +166,7 @@ async function run() {
 
     app.get("/pending/:email", verifyToken, async (req, res) => {
       const tokenData = req.user
-      console.log(tokenData);
+      // console.log(tokenData);
       const email = req.params.email;
       if (email !== req.user.email) {
         return res.status(403).send({ message: 'forbidden' })
